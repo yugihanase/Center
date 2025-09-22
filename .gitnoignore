@@ -1,0 +1,17 @@
+/vendor/
+/node_modules/
+/public/storage
+/storage/*.key
+/storage/app/public
+/storage/debugbar/
+/storage/framework/cache/**
+/storage/framework/sessions/**
+/storage/framework/views/**
+/.env
+/.env.*
+/.phpunit.cache/
+/.vscode/
+.idea/
+phpunit.xml
+npm-debug.log*
+yarn.lock

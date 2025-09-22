@@ -1,0 +1,1 @@
+<img src="<?php echo e(asset('images/Toat_logo.png')); ?>" alt="Logo" class="h-9 w-auto"><?php /**PATH D:\code\Report\resources\views/components/application-logo.blade.php ENDPATH**/ ?>

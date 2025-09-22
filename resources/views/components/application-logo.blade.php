@@ -1,0 +1,1 @@
+<img src="{{ asset('images/Toat_logo.png') }}" alt="Logo" class="h-9 w-auto">
