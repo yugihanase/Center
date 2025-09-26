@@ -1,3 +1,45 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* resources/css/app.css */
+@layer components {
+  th.sorting,
+  th.sorting_asc,
+  th.sorting_desc {
+    position: relative;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  th.sorting a,
+  th.sorting_asc a,
+  th.sorting_desc a {
+    color: inherit;
+    text-decoration: none;
+    display: inline-block;
+    width: 100%;
+    padding-right: 1rem; /* กันชนให้ที่สำหรับลูกศร */
+  }
+
+  /* ลูกศรอยู่ขอบขวาของหัวคอลัมน์เดิม (ไม่ใช่คอลัมน์ใหม่) */
+  th.sorting::after,
+  th.sorting_asc::after,
+  th.sorting_desc::after {
+    content: "↕";                 /* ยังไม่เรียง = ขึ้น/ลง */
+    position: absolute;
+    right: .5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: .8rem;
+    color: #a2a8b0;
+    pointer-events: none;         /* คลิกที่ลิงก์ได้เต็มพื้นที่ */
+  }
+  th.sorting_asc::after  { content: "↑"; color: #495057; }
+  th.sorting_desc::after { content: "↓"; color: #495057; }
+
+  th.sorting:hover::after,
+  th.sorting_asc:hover::after,
+  th.sorting_desc:hover::after { color: #212529; }
+}
+

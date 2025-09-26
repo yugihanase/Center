@@ -1,17 +1,50 @@
 <?php
 
+// app/Http/Controllers/ReportController.php
 namespace App\Http\Controllers;
+
+use App\Models\Report;
 use Illuminate\Http\Request;
-// use App\Models\Report; // ถ้าจะบันทึกลง DB
-use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 
 class ReportController extends Controller
 {
-    public function create()
+    // หน้าเดียว: ฟอร์ม + ตารางติดตาม
+    public function follow(Request $request)
     {
-        return view('report.create');
+        $q = trim((string) $request->query('q', ''));
+        $status = $request->query('status'); // อาจเป็น null หรือ ''
+
+        $reports = \App\Models\Report::query()
+            ->with('user')
+            ->when($q !== '', function ($query) use ($q) {
+                $query->where(function ($qq) use ($q) {
+                    $qq->where('device_address', 'like', "%{$q}%")
+                    ->orWhere('device_list', 'like', "%{$q}%")
+                    ->orWhere('detail', 'like', "%{$q}%")
+                    ->orWhereHas('user', function ($u) use ($q) {
+                        $u->where('name', 'like', "%{$q}%")
+                            ->orWhere('email', 'like', "%{$q}%");
+                    });
+                });
+            })
+            // ใส่ where เฉพาะเมื่อมีการเลือกสถานะจริง ๆ
+            ->when($status !== null && $status !== '', function ($query) use ($status) {
+                $query->where('status', $status);
+            })
+            ->latest()
+            ->paginate(10)
+            // คงพารามิเตอร์บน pagination
+            ->appends($request->query());
+
+        return view('report.follow', [
+            'reports' => $reports,
+            'q'       => $q,
+            'status'  => $status ?? '', // ส่งกลับไปให้ select ทำงานถูก
+        ]);
     }
 
+    // บันทึกฟอร์มแจ้งซ่อม
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -24,28 +57,30 @@ class ReportController extends Controller
             'detail.required'         => 'กรุณาแจ้งรายละเอียด',
         ]);
 
-        // ถ้าบันทึกฐานข้อมูล:
-        // Report::create($validated);
+        $validated['user_id'] = Auth::id();
+        $validated['status']  = 'รอดำเนินการ';
+
+        Report::create($validated);
 
         return back()->with('success', 'ส่งคำขอเรียบร้อย');
     }
 
-    public function follow(Request $request)
+    // เปลี่ยนสถานะแบบเร็ว
+    public function updateStatus(Request $request, Report $report)
     {
-        // ตัวอย่าง filter เบื้องต้น (ค้นหาจากชื่อ/อีเมล)
-        $search = $request->query('q');
+        $request->validate([
+            'status' => ['required','in:รอดำเนินการ,กำลังดำเนินการ,เสร็จสิ้น,ยกเลิก']
+        ]);
 
-        $users = User::query()
-            ->when($search, function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
-            })
-            ->orderBy('created_at', 'desc')
-            ->paginate(10)
-            ->withQueryString();
+        $report->update(['status' => $request->status]);
 
-        return view('follow', compact('users', 'search'));
+        return back()->with('success', 'อัปเดตสถานะสำเร็จ');
     }
-    
-    
+
+    // ลบรายการ
+    public function destroy(Report $report)
+    {
+        $report->delete();
+        return back()->with('success', 'ลบรายการแล้ว');
+    }
 }

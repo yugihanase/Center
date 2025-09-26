@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('device_address'); // ที่อยู่อุปกรณ์
             $table->string('device_list');    // รายการอุปกรณ์
             $table->text('detail');           // แจ้งรายละเอียด
+            $table->string('status')->default('รอดำเนินการ'); // สถานะ
             $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
             $table->timestamps();
         });

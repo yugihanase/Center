@@ -1,0 +1,324 @@
+<x-app-layout>
+  <x-slot name="header">
+    <h2 class="font-semibold text-xl text-gray-800 leading-tight">
+      {{ __('ระบบแจ้งซ่อมอุปกรณ์') }}
+    </h2>
+  </x-slot>
+
+  <div class="min-vh-100 d-flex align-items-center justify-content-center bg-light">
+    <div class="card shadow" style="width: 90%; max-width: 1280px;">
+      <div class="card-header text-center fw-semibold">
+        แจ้งปัญหา & ติดตามสถานะ
+      </div>
+
+      <div class="card-body">
+        @if (session('success'))
+          <div class="alert alert-success">{{ session('success') }}</div>
+        @endif
+
+          {{-- ฟอร์มแจ้งซ่อม --}}
+          <div class="col-lg-4">
+            <div class="card shadow-sm">
+              <div class="card-header fw-semibold text-center">แจ้งปัญหา/คำขอ</div>
+              <div class="card-body">
+                <form method="POST" action="{{ route('report.store') }}" enctype="multipart/form-data">
+                  @csrf
+
+                  <div class="mb-3">
+                    <label for="device_address" class="form-label">สถานที่</label>
+                    <input type="text" id="device_address" name="device_address"
+                      class="form-control @error('device_address') is-invalid @enderror"
+                      value="{{ old('device_address') }}" required>
+                    @error('device_address') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                  </div>
+
+                  <div class="mb-3">
+                    <label for="device_list" class="form-label">รายการอุปกรณ์</label>
+                    <input type="text" id="device_list" name="device_list"
+                      class="form-control @error('device_list') is-invalid @enderror"
+                      value="{{ old('device_list') }}" required>
+                    @error('device_list') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                  </div>
+
+                  <div class="mb-3">
+                    <label for="detail" class="form-label">แจ้งรายละเอียด</label>
+                    <textarea id="detail" name="detail" rows="3"
+                      class="form-control @error('detail') is-invalid @enderror"
+                      required>{{ old('detail') }}</textarea>
+                    @error('detail') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                  </div>
+
+                  {{-- หลายรูป --}}
+                  <div class="mb-3">
+                    <label class="form-label fw-semibold">อัปโหลดรูปภาพ (หลายไฟล์)</label>
+
+                    {{-- สรุปสถานะ --}}
+                    <div id="multiInfo" class="small text-muted mb-2">ยังไม่ได้เลือกรูป</div>
+
+                    {{-- แกลเลอรีพรีวิว --}}
+                    <div id="gallery" class="row g-2 mb-2"></div>
+
+                    <div class="d-flex gap-2">
+                      <button type="button" class="btn btn-outline-secondary" id="pickImagesBtn">
+                        <i class="fas fa-images me-1"></i> เลือกรูป
+                      </button>
+                      <button type="button" class="btn btn-outline-danger" id="clearAllBtn">
+                        ลบทั้งหมด
+                      </button>
+                    </div>
+
+                    {{-- input จริง (ซ่อน) --}}
+                    <input
+                      type="file"
+                      id="images"
+                      name="images[]"
+                      class="visually-hidden @error('images') is-invalid @enderror @error('images.*') is-invalid @enderror"
+                      accept="image/*"
+                      multiple
+                    >
+
+                    @error('images')
+                      <div class="invalid-feedback d-block">{{ $message }}</div>
+                    @enderror
+                    @error('images.*')
+                      <div class="invalid-feedback d-block">{{ $message }}</div>
+                    @enderror
+
+                    <div class="form-text">
+                      รองรับ JPEG/PNG/WebP ฯลฯ, ไฟล์ละ ≤ 2 MB, รวมไม่เกิน 10 รูป
+                    </div>
+
+                    <div id="multiError" class="text-danger small mt-1 d-none"></div>
+                  </div>
+
+                  <script>
+                  (() => {
+                    const input   = document.getElementById('images');
+                    const pickBtn = document.getElementById('pickImagesBtn');
+                    const clrBtn  = document.getElementById('clearAllBtn');
+                    const gallery = document.getElementById('gallery');
+                    const info    = document.getElementById('multiInfo');
+                    const errBox  = document.getElementById('multiError');
+
+                    const MAX_MB    = 2;
+                    const MAX_FILES = 10;
+
+                    // เราจะเก็บไฟล์ไว้ในอาเรย์ แล้ว sync กลับไปที่ input.files ด้วย DataTransfer
+                    let filesArr = [];
+                    let urls = []; // เก็บ ObjectURL เพื่อ revoke ตอนลบ/ล้าง
+
+                    function bytesToMB(b){ return (b / (1024*1024)); }
+                    function fmtMB(x){ return `${x.toFixed(2)} MB`; }
+
+                    function showError(msg){
+                      errBox.textContent = msg;
+                      errBox.classList.remove('d-none');
+                    }
+                    function clearError(){
+                      errBox.classList.add('d-none');
+                      errBox.textContent = '';
+                    }
+
+                    function updateInfo(){
+                      const count = filesArr.length;
+                      const totalMB = bytesToMB(filesArr.reduce((s,f)=>s+f.size,0));
+                      info.textContent = count
+                        ? `เลือกรูปแล้ว ${count} ไฟล์ • รวม ${fmtMB(totalMB)}`
+                        : 'ยังไม่ได้เลือกรูป';
+                    }
+
+                    function syncToInput(){
+                      const dt = new DataTransfer();
+                      filesArr.forEach(f => dt.items.add(f));
+                      input.files = dt.files;
+                    }
+
+                    function revokeAll(){
+                      urls.forEach(u => URL.revokeObjectURL(u));
+                      urls = [];
+                    }
+
+                    function render(){
+                      // ล้างเก่า
+                      revokeAll();
+                      gallery.innerHTML = '';
+
+                      filesArr.forEach((f, idx) => {
+                        const url = URL.createObjectURL(f);
+                        urls.push(url);
+
+                        const col = document.createElement('div');
+                        col.className = 'col-6 col-sm-4 col-md-3 col-lg-2';
+
+                        col.innerHTML = `
+                          <div class="position-relative border rounded-3 overflow-hidden">
+                            <img src="${url}" class="img-fluid" alt="">
+                            <button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1"
+                                    data-index="${idx}" title="ลบรูปนี้">×</button>
+                          </div>
+                          <div class="small text-truncate mt-1" title="${f.name}">${f.name}</div>
+                        `;
+                        gallery.appendChild(col);
+                      });
+
+                      // ผูก event ลบ
+                      gallery.querySelectorAll('button[data-index]').forEach(btn => {
+                        btn.addEventListener('click', (e) => {
+                          const i = +e.currentTarget.dataset.index;
+                          filesArr.splice(i, 1);
+                          syncToInput();
+                          updateInfo();
+                          render();
+                        });
+                      });
+                    }
+
+                    function resetAll(){
+                      filesArr = [];
+                      input.value = '';
+                      revokeAll();
+                      gallery.innerHTML = '';
+                      updateInfo();
+                      clearError();
+                    }
+
+                    pickBtn?.addEventListener('click', () => input?.click());
+                    clrBtn?.addEventListener('click', resetAll);
+
+                    input?.addEventListener('change', () => {
+                      clearError();
+                      const incoming = Array.from(input.files || []);
+                      if (!incoming.length) return;
+
+                      // รวมกับของเดิม
+                      let combined = filesArr.slice();
+
+                      for (const f of incoming) {
+                        // ชนิดต้องเป็น image/*
+                        if (!f.type || !f.type.startsWith('image/')) {
+                          showError(`ไฟล์ "${f.name}" ไม่ใช่รูปภาพ`);
+                          continue;
+                        }
+                        // ขนาดต่อไฟล์
+                        const sizeMB = bytesToMB(f.size);
+                        if (sizeMB > MAX_MB) {
+                          showError(`ไฟล์ "${f.name}" ใหญ่เกินไป (${fmtMB(sizeMB)}) — จำกัด ${MAX_MB} MB`);
+                          continue;
+                        }
+                        // จำกัดจำนวนทั้งหมด
+                        if (combined.length >= MAX_FILES) {
+                          showError(`เลือกรูปเกินจำนวนที่กำหนด (${MAX_FILES} ไฟล์)`);
+                          break;
+                        }
+                        // กันไฟล์ซ้ำแบบหยาบ ๆ (ชื่อ+ขนาด)
+                        const dup = combined.some(x => x.name === f.name && x.size === f.size && x.lastModified === f.lastModified);
+                        if (dup) continue;
+
+                        combined.push(f);
+                      }
+
+                      filesArr = combined;
+                      syncToInput();
+                      updateInfo();
+                      render();
+                    });
+
+                    // เริ่มต้น
+                    updateInfo();
+                  })();
+                  </script>
+
+                  <button type="submit" class="btn btn-primary w-100">ยืนยัน</button>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          {{-- ตารางติดตาม --}}
+          <div class="col-lg-8">
+            <div class="card shadow-sm">
+              <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
+                <span class="fw-semibold">ติดตามรายการ</span>
+                <form method="GET" action="{{ route('report.follow') }}" class="d-flex gap-2" id="filterForm">
+                  <select class="form-select" name="status" id="statusSelect" onchange="handleStatusChange(this)">
+                    <option value="" @selected(($status ?? '') === '')>ทุกสถานะ</option>
+                    @foreach (['รอดำเนินการ','กำลังดำเนินการ','เสร็จสิ้น','ยกเลิก'] as $st)
+                      <option value="{{ $st }}" @selected(($status ?? '') === $st)>{{ $st }}</option>
+                    @endforeach
+                  </select>
+                  <input type="search" class="form-control" name="q" value="{{ $q }}" placeholder="ค้นหา ชื่อ/อีเมล/ที่อยู่/รายการ/รายละเอียด" id="qInput">
+
+                  <button class="btn btn-outline-primary" type="submit">ค้นหา</button>
+                </form>
+
+                <script>
+                  function handleStatusChange(selectEl) {
+                    if (selectEl.value === '') {
+                      // เลือก "ทุกสถานะ" -> ล้าง query ทั้งหมด
+                      window.location.href = '{{ route('report.follow') }}';
+                    } else {
+                      // เลือกสถานะเฉพาะ -> ส่งฟอร์มทันที (คงค่า q ถ้ามี)
+                      selectEl.form.submit();
+                    }
+                  }
+                </script>
+              </div>
+
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table class="table table-striped align-middle text-center mb-0">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>สถานที่</th>
+                        <th>รายการ</th>
+                        <th>รายละเอียด</th>
+                        <th>สถานะ</th>
+                        <th>ผู้แจ้ง</th>
+                        <th>เมื่อ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @forelse ($reports as $i => $r)
+                        <tr>
+                          <td>{{ $reports->firstItem() + $i }}</td>
+                          <td>{{ $r->device_address }}</td>
+                          <td>{{ $r->device_list }}</td>
+                          <td class="text-truncate" style="max-width: 260px;">
+                            {{ \Illuminate\Support\Str::limit($r->detail, 100) }}
+                          </td>
+                          <td>
+                            @php
+                              $map = [
+                                'รอดำเนินการ'   => 'secondary',
+                                'กำลังดำเนินการ' => 'warning',
+                                'เสร็จสิ้น'     => 'success',
+                                'ยกเลิก'         => 'dark',
+                              ];
+                            @endphp
+                            <span class="badge bg-{{ $map[$r->status] ?? 'secondary' }}">{{ $r->status }}</span>
+                          </td>
+                          <td>{{ $r->user?->name ?? '-' }}</td>
+                          <td>{{ optional($r->created_at)->format('Y-m-d H:i') }}</td>
+                          
+                        </tr>
+                      @empty
+                        <tr>
+                          <td colspan="8" class="text-center text-muted">ไม่พบรายการ</td>
+                        </tr>
+                      @endforelse
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="d-flex justify-content-end">
+                  {{ $reports->onEachSide(1)->links() }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div> {{-- /.row --}}
+      </div> {{-- /.card-body --}}
+    </div>
+  </div>
+</x-app-layout>
