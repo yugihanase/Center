@@ -73,7 +73,6 @@ Route::middleware(['auth','can:manage-reports'])
 
         // Dashboard แอดมิน
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-        Route::get('/stock', [StockController::class, 'index'])->name('stock');
 
         // จัดการรายงานแจ้งซ่อม
         Route::get   ('/reports',                 [AdminReportController::class, 'index'])->name('reports.index');
@@ -89,7 +88,7 @@ Route::middleware(['auth','can:manage-reports'])
         Route::delete('/report-images/{image}', [ReportImageController::class, 'destroy'])->name('report_images.destroy');
 
         // สต็อก
-        Route::get('/stock',            [\App\Http\Controllers\Admin\StockController::class,'index'])->name('stock.index');
+        Route::get('/stock',            [\App\Http\Controllers\Admin\StockController::class,'index'])->name('stock');
         Route::post('/stock',           [\App\Http\Controllers\Admin\StockController::class,'store'])->name('stock.store');
         Route::post('/stock/{stock}/in',[\App\Http\Controllers\Admin\StockController::class,'addIn'])->name('stock.in');
         Route::post('/stock/{stock}/out',[\App\Http\Controllers\Admin\StockController::class,'addOut'])->name('stock.out');
@@ -102,6 +101,13 @@ Route::middleware(['auth','can:manage-reports'])
 
         // เตรียมพื้นที่ไว้ก่อน
         Route::view('/jobs/assign',    'admin.jobs.assign')->name('jobs.assign');
+        route::view('/jobs/calendar',  'admin.jobs.calendar')->name('jobs.calendar');
+
+
+
+
+
+
         Route::view('/borrow/staff',   'admin.borrow.staff')->name('borrow.staff');
         Route::view('/borrow/vehicle', 'admin.borrow.vehicle')->name('borrow.vehicle');
     });

@@ -19,6 +19,9 @@
                     <x-nav-link :href="route('stock')" :active="request()->routeIs('stock')">
                         {{ __('Stock') }}
                     </x-nav-link>
+                    <x-nav-link :href="route('admin.jobs.calendar')" :active="request()->routeIs('admin.jobs.calendar')">
+                        {{ __('Calendar') }}
+                    </x-nav-link>
                     @endcan
                 </div>
             </div>
