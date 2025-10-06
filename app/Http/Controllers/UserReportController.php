@@ -82,5 +82,52 @@ class UserReportController extends Controller
         $report->load('images');
         return view('report.show', compact('report'));
     }
+
+    public function updateDetail(Request $request, Report $report)
+    {
+        // อนุญาตเฉพาะเจ้าของ
+        abort_unless(auth()->id() === $report->user_id, 403, 'คุณไม่มีสิทธิ์แก้ไขรายการนี้');
+
+        // ล็อกเมื่อเสร็จสิ้น/ยกเลิก
+        if (in_array($report->status, ['เสร็จสิ้น','ยกเลิก'], true)) {
+            return back()
+                ->withErrors(['locked' => 'รายการถูก '.$report->status.' แล้ว'])
+                ->with('form', 'update-detail');
+        }
+
+        $data = $request->validate([
+            'detail' => ['required','string','min:5','max:4000'],
+        ]);
+
+        // เขียนทับรายละเอียดเดิมทั้งก้อน
+        $report->detail = $data['detail'];
+        $report->save();
+
+        return back()
+            ->with('success_detail', 'บันทึกการแก้ไขรายละเอียดแล้ว')
+            ->with('form', 'update-detail');
+    }
+
+    public function cancel(Request $request, Report $report)
+    {
+        abort_unless(auth()->id() === $report->user_id, 403, 'คุณไม่มีสิทธิ์ยกเลิกรายการนี้');
+
+        if (in_array($report->status, ['เสร็จสิ้น','ยกเลิก'], true)) {
+            return back()
+                ->withErrors(['locked' => 'รายการถูก '.$report->status.' แล้ว'])
+                ->with('form', 'cancel');
+        }
+
+        $data = $request->validate([
+            'cancel_reason' => ['required','string','min:5','max:1000'],
+        ]);
+
+        $report->detail = rtrim((string)$report->detail)
+            ."\n\n--- ผู้ใช้ยกเลิกรายการ (".now()->format('Y-m-d H:i').") ---\nเหตุผล: ".$data['cancel_reason'];
+        $report->status = 'ยกเลิก';
+        $report->save();
+
+        return back()->with('success_cancel', 'ยกเลิกรายการแล้ว')->with('form', 'cancel');
+    }
 }
 

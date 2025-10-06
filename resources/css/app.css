@@ -1,8 +1,22 @@
+/* โหลดฟอนต์ Kanit จาก Google (วิธีง่ายสุดถ้าใช้ Vite/Tailwind) */
+@import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* resources/css/app.css */
+/* ตั้งค่าฟอนต์ฐานให้ทั้งโปรเจกต์ผ่าน Tailwind base layer */
+@layer base {
+  :root {
+    --font-sans: "Kanit", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+                 Roboto, "Helvetica Neue", Arial, "Noto Sans Thai", Tahoma, sans-serif;
+  }
+  html {
+    font-family: var(--font-sans);
+  }
+}
+
+/* DataTables header arrows + คลิกเรียงคอลัมน์ */
 @layer components {
   th.sorting,
   th.sorting_asc,
@@ -42,4 +56,3 @@
   th.sorting_asc:hover::after,
   th.sorting_desc:hover::after { color: #212529; }
 }
-

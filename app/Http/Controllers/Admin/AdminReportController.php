@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Report;
+use App\Models\Assignment;              // เพิ่ม
+use App\Models\User;                    // เพิ่ม
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Illuminate\Support\Facades\DB;      // เพิ่ม
 
 class AdminReportController extends Controller
 {
@@ -51,8 +54,18 @@ class AdminReportController extends Controller
 
     public function show(Report $report)
     {
-        $report->load(['user']); // เผื่อหน้า view ต้องใช้ชื่อผู้แจ้ง
-        return view('admin.reports.show', compact('report'));
+        // โหลด assignment ปัจจุบัน/ล่าสุด + ช่าง เพื่อแสดง "ผู้รับผิดชอบ" จริง
+        $report->load([
+            'user',
+            'images',
+            'currentAssignment.technician',
+            'latestAssignment.technician',
+        ]);
+
+        // รายชื่อช่างสำหรับดรอปดาวน์มอบหมาย/ย้าย
+        $techs = User::where('role','technician')->orderBy('name')->get(['id','name']);
+
+        return view('admin.reports.show', compact('report','techs'));
     }
 
     public function updateStatus(Request $request, Report $report)
@@ -142,5 +155,114 @@ class AdminReportController extends Controller
             }
             fclose($out);
         }, $filename, ['Content-Type' => 'text/csv']);
+    }
+
+    public function update(Request $request, Report $report)
+    {
+        $old = $report->only(['status','detail']);
+        $report->update($request->validate([
+            'status' => 'required|string',
+            'detail' => 'required|string|max:2000',
+        ]));
+        $new = $report->only(['status','detail']);
+
+        activity_log([
+            'event'       => 'updated',
+            'subject'     => $report,
+            'description' => "แก้ไขงานแจ้งซ่อม #{$report->id}",
+            'properties'  => ['before'=>$old,'after'=>$new],
+        ]);
+
+        return back()->with('success','อัปเดตเรียบร้อย');
+    }
+
+    /**
+     * มอบหมาย/ย้ายผู้รับผิดชอบ (แอดมิน)
+     */
+    public function assign(Request $request, Report $report)
+    {
+        $data = $request->validate([
+            'technician_id' => ['nullable','exists:users,id'],
+            'priority'      => ['nullable','integer','between:1,5'],
+            'eta'           => ['nullable','date'],
+            'note'          => ['nullable','string','max:2000'],
+        ]);
+
+        return DB::transaction(function () use ($report, $data, $request) {
+            // หา assignment ที่ยัง "เปิดอยู่" ของรายงานนี้
+            $open = Assignment::lockForUpdate()
+                ->where('report_id', $report->id)
+                ->open()
+                ->latest('id')
+                ->first();
+
+            // A) technician_id = null -> ปลดมอบหมาย
+            if (empty($data['technician_id'])) {
+                if ($open) {
+                    $from = $open->status;
+                    $open->update(['status' => 'ยกเลิก', 'finished_at' => now()]);
+                    $open->logs()->create([
+                        'actor_id'    => $request->user()->id,
+                        'action'      => 'status_change',
+                        'from_status' => $from,
+                        'to_status'   => 'ยกเลิก',
+                        'note'        => 'unassign by admin',
+                    ]);
+                }
+                return back()->with('success','ยกเลิกการมอบหมายแล้ว');
+            }
+
+            // B) มี assignment เปิดอยู่ → เปลี่ยนช่าง/ปรับรายละเอียด
+            if ($open) {
+                $changes = [];
+                if ($open->technician_id !== (int)$data['technician_id']) {
+                    $open->technician_id = (int)$data['technician_id'];
+                    $changes[] = 'เปลี่ยนผู้รับผิดชอบ';
+                }
+                if (isset($data['priority'])) { $open->priority = $data['priority']; $changes[] = 'ปรับ Priority'; }
+                if (isset($data['eta']))      { $open->eta      = $data['eta'];      $changes[] = 'กำหนด ETA'; }
+                if (isset($data['note']))     { $open->note     = $data['note']; }
+
+                $open->save();
+                $open->logs()->create([
+                    'actor_id'  => $request->user()->id,
+                    'action'    => 'assign_update',
+                    'to_status' => $open->status,
+                    'note'      => implode(' / ', $changes) ?: 'ปรับรายละเอียดมอบหมาย',
+                    'ip'        => $request->ip(),
+                ]);
+
+                if ($report->status === 'รอดำเนินการ') {
+                    $report->update(['status' => 'กำลังดำเนินการ']);
+                }
+
+                return back()->with('success','อัปเดตการมอบหมายเรียบร้อย');
+            }
+
+            // C) ยังไม่มี assignment เปิดอยู่ → สร้างใหม่
+            $a = Assignment::create([
+                'report_id'     => $report->id,
+                'technician_id' => (int)$data['technician_id'],
+                'assigned_by'   => $request->user()->id,
+                'status'        => 'มอบหมาย',
+                'priority'      => $data['priority'] ?? 3,
+                'eta'           => $data['eta'] ?? null,
+                'note'          => $data['note'] ?? null,
+            ]);
+
+            $a->logs()->create([
+                'actor_id'  => $request->user()->id,
+                'action'    => 'assign',
+                'to_status' => 'มอบหมาย',
+                'note'      => 'assigned by admin',
+                'ip'        => $request->ip(),
+            ]);
+
+            if ($report->status === 'รอดำเนินการ') {
+                $report->update(['status' => 'กำลังดำเนินการ']);
+            }
+
+            return back()->with('success','มอบหมายงานเรียบร้อย');
+        });
     }
 }

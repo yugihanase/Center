@@ -73,7 +73,7 @@
                 <div class="h3">{{ $tech_idle }}</div>
               </div>
             </div>
-            <canvas id="techChart" height="120" class="mt-3"></canvas>
+            <canvas id="techChart" style="width:100%; max-width:520px; height:220px;"></canvas>
           </div>
         </div>
       </div>

@@ -42,6 +42,10 @@ return [
 
     'line' => [
     'channel_access_token' => env('LINE_CHANNEL_ACCESS_TOKEN'),
-],
+    ],
+
+    'systemA' => [
+        'webhook_secret' => env('SYSTEMA_WEBHOOK_SECRET'),
+    ],
 
 ];

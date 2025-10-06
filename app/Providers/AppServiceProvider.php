@@ -3,31 +3,30 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\Gate;
-use App\Models\User;
-use App\Services\LineMessagingService;
+use Illuminate\Http\RedirectResponse;
+use Laravel\Fortify\Contracts\RegisterResponse as RegisterResponseContract;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
     public function register(): void
     {
-        //
-        $this->app->singleton(LineMessagingService::class, function ($app) {
-            return new LineMessagingService(config('services.line.channel_access_token'));
-        });
+        // อื่น ๆ ...
     }
 
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
     {
-        //
-        Gate::define('manage-reports', fn(User $user) => $user->role === 'admin');
-    }
+        // ... โค้ดเดิมของคุณก่อนหน้า
 
-    
+        // หลัง "สมัครสมาชิก" เสร็จ: ส่งผู้ใช้ไปยังหน้า home ของบทบาท
+        $this->app->singleton(RegisterResponseContract::class, function () {
+            return new class implements RegisterResponseContract {
+                public function toResponse($request): RedirectResponse
+                {
+                    $user = $request->user();
+                    // ต้องมีเมธอดนี้ใน User model (ดูด้านล่าง)
+                    return redirect()->intended($user->homeRoute());
+                }
+            };
+        });
+    }
 }

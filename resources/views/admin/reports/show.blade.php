@@ -86,27 +86,40 @@
                 </div>
               </div>
             </div>
-      {{-- ===== /รายละเอียด + แกลเลอรีข้างกัน ===== --}}
+      {{-- ====== รายละเอียดการทำงาน (จริง) ====== --}}
+<div class="card-header fw-semibold">รายละเอียดการทำงาน #{{ $report->id }}</div>
+<div class="card-body">
+  @php
+    // เอาช่างที่เปิดอยู่ก่อน ถ้าไม่มีเปิดอยู่แล้ว fallback เป็น assignment ล่าสุด
+    $current = $report->currentAssignment;
+    $latest  = $report->latestAssignment;
 
-      <div class="card-header fw-semibold">รายละเอียดการทำงาน #{{ $report->id }} DEMO</div>
-      <div class="card-body">
-        <dl class="row mb-0">
-          <dt class="col-sm-3">ผู้รับผิดชอบ</dt>
-          <dd class="col-sm-9">นายสมชาย</dd>
+    $techName   = $current?->technician?->name ?? $latest?->technician?->name ?? '— ยังไม่มอบหมาย —';
+    $startedAt  = $current?->started_at ?? $latest?->started_at;
+    $finishedAt = $current?->finished_at ?? $latest?->finished_at;
+    $aStatus    = $current?->status ?? $latest?->status; // ถ้าอยากโชว์สถานะ assignment
+  @endphp
 
-          <dt class="col-sm-3">รายการอุปกรณ์ที่ใช้</dt>
-          <dd class="col-sm-9">หลอดไฟ จำนวน 1</dd>
+  <dl class="row mb-0">
+    <dt class="col-sm-3">ผู้รับผิดชอบ</dt>
+    <dd class="col-sm-9">{{ $techName }}</dd>
 
-          <dt class="col-sm-3">รับงาน</dt>
-          <dd class="col-sm-9">24/9/2025</dd>
+    @if($aStatus)
+      <dt class="col-sm-3">สถานะ (ผู้รับผิดชอบ)</dt>
+      <dd class="col-sm-9"><span class="badge bg-info">{{ $aStatus }}</span></dd>
+    @endif
 
-          <dt class="col-sm-3">เสร็จสิ้น</dt>
-          <dd class="col-sm-9">25/9/2025</dd>
+    <dt class="col-sm-3">รับงาน</dt>
+    <dd class="col-sm-9">{{ optional($startedAt)->format('Y-m-d H:i') ?? '—' }}</dd>
 
-          <dt class="col-sm-3">รายละเอียด</dt>
-          <dd class="col-sm-9">หลอดไฟหลอดเก่าเสีย ทำการเปลี่ยนใหม่</dd>
-        </dl>
-      </div>
+    <dt class="col-sm-3">เสร็จสิ้น</dt>
+    <dd class="col-sm-9">{{ optional($finishedAt)->format('Y-m-d H:i') ?? '—' }}</dd>
+
+    <dt class="col-sm-3">รายละเอียด</dt>
+    <dd class="col-sm-9">{{ $report->work_detail ?? '—' }}</dd>
+  </dl>
+</div>
+
 
       <div class="card-footer d-flex flex-wrap gap-2 justify-content-between align-items-center">
         <a href="{{ route('dashboard') }}" class="btn btn-outline-secondary">ย้อนกลับ</a>
